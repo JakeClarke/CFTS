@@ -1,9 +1,9 @@
-all: client server
+all: aos-client aos-server
 
-client: ./client/client.c
+aos-client: ./client/client.c
 	clang -o aos-client ./client/client.c
 
-server: ./server/server.c
+aos-server: ./server/server.c
 	clang -o aos-server ./server/server.c
 
 clean:
