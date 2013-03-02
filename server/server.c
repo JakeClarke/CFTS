@@ -13,6 +13,7 @@ int main(int argc, char *argv[])
 {
 	pid_t pid;
 	char * configLoc = "~/.AOS.config";
+	char * wkDir = "./";
 
 	int sockfd, clientsockfd;
 	struct sockaddr_in server;
@@ -41,6 +42,15 @@ int main(int argc, char *argv[])
 	printf("Loading config: %s\n", configLoc);
 
 	/* TODO config loading */
+
+	/* Change the working dir. */
+	if(chdir(wkDir) != 0) {
+		printf("Failed to change to working directory: %s\n", wkDir);
+		exit(EXIT_FAILURE);
+	}
+	else {
+		printf("Working dir: %s\n", wkDir);
+	}
 
 	pid = fork();
 	if(pid < 0) {
