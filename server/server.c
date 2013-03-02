@@ -6,8 +6,9 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#define SIZE sizeof(struct sockaddr_in)
 
-
+int sockfd, clientsockfd;
 
 int main(int argc, char *argv[]) 
 {
@@ -15,14 +16,11 @@ int main(int argc, char *argv[])
 	char * configLoc = "~/.AOS.config";
 	char * wkDir = "./";
 
-	int sockfd, clientsockfd;
 	struct sockaddr_in server;
 	sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	server.sin_family=AF_INET;
 	server.sin_addr.s_addr=INADDR_ANY;
 	server.sin_port=htons(4321);
-
-
 
 	printf("hello server!\n");
 	setlogmask(LOG_UPTO (LOG_DEBUG));
@@ -63,9 +61,21 @@ int main(int argc, char *argv[])
 
 	syslog(LOG_INFO, "Server forked!");
 
-	/* TODO change session and working directory */
+	/* TODO change session */
 
+
+	/* Bind to socket and listen. */
 	syslog(LOG_INFO, "Opening socket on port: %i", ntohs(server.sin_port));
 
-	/* TODO open up socket */
+	if(bind(sockfd, (struct sockaddr *)&server, SIZE) ==- 1) {
+		syslog(LOG_ERR, "Server failed to bind!");
+		exit(EXIT_FAILURE);
+	}
+
+	if(listen(sockfd,5) == -1) {
+		syslog(LOG_ERR, "Server failed to listen!");
+		exit(EXIT_FAILURE);
+	}
+
+	syslog(LOG_DEBUG, "Socket successfully bind and listening");
 }
