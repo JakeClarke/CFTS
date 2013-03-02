@@ -1,11 +1,11 @@
 all: client server
 
 client: ./client/client.c
-	clang -o client.out ./client/client.c
+	clang -o aos-client ./client/client.c
 
 server: ./server/server.c
-	clang -o server.out ./server/server.c
+	clang -o aos-server ./server/server.c
 
 clean:
-	rm client.out
-	rm server.out
+	rm aos-client
+	rm aos-server
