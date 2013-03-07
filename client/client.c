@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <fcntl.h>
 
 #define SIZE sizeof(struct sockaddr_in)
 #define RECVBUFF_SIZE 1024
@@ -51,6 +52,11 @@ int main()
 			send(sockfd, message, strlen(message), 0);
 			exit(EXIT_SUCCESS);
 		}
+		else if(strcmp(inBuff, "shutdown") == 0) {
+			char * message = "SHUTDOWN";
+			send(sockfd, message, strlen(message), 0);
+			exit(EXIT_SUCCESS);
+		}
 		else {
 			printf("Invalid input!\n");
 		}
@@ -74,6 +80,21 @@ void *recvD(void * args) {
 				pch = strtok(NULL, " ");
 				long fileLength = atol(pch);
 				long remaining = fileLength;
+				pch = strtok(NULL, " ");
+				char fileName[sizeof(pch)];
+				memcpy(&fileName, &pch, sizeof(pch));
+
+				printf("Recieving file: %s\n", fileName);
+
+				int fileFD = creat(fileName, S_IRWXU);
+
+				while (remaining > 0) {
+					int in = recv(sockfd, &recvBuff, RECVBUFF_SIZE, 0);
+					write(fileFD, &recvBuff, in);
+					remaining -= in;
+				}
+				close(fileFD);
+				printf("File download complete!");
 
 			}
 			else {

@@ -91,12 +91,13 @@ int main(int argc, char *argv[])
 	for(;;) {
 
 		clientsockfd = accept(sockfd, &addr, &addrlen);
-		inet_ntop(addr.sa_family, &addr.sa_data, clientAdd, addrlen);
+		inet_ntop(addr.sa_family, &addr.sa_data, &clientAdd[0], addrlen);
 		syslog(LOG_INFO, "Client Connected! %s", clientAdd);
 		if(fork() == 0) {
-			char clientReq[CLIENTBUFF_SIZE];
+			char clientReq[CLIENTBUFF_SIZE] = {0};
 
-			while(recv(clientsockfd, &clientReq, CLIENTBUFF_SIZE, 0) > 0) {
+			while(recv(clientsockfd, &clientReq[0], CLIENTBUFF_SIZE, 0) > 0) {
+				syslog(LOG_DEBUG, "Client request: %s", clientReq);
 				if (strcmp(clientReq, "BYE") == 0)
 				{
 					syslog(LOG_INFO, "Client disconnected!");
@@ -109,6 +110,7 @@ int main(int argc, char *argv[])
 				else {
 					syslog(LOG_ERR, "Unrecognised client request: %s", clientReq);
 				}
+				memset(&clientReq, 0, CLIENTBUFF_SIZE);
 			}
 
 		}
