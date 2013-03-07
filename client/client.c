@@ -5,14 +5,21 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <pthread.h>
 
 #define SIZE sizeof(struct sockaddr_in)
+#define RECVBUFF_SIZE 1024
+
+void *recvD(void *);
+
+pthread_t tid;
+int sockfd;
 
 int main() 
 {
 	printf("AOS - client.\n");
 
-	int sockfd;
+	
 	char c,rc;
 	struct sockaddr_in toserver;
 
@@ -25,10 +32,53 @@ int main()
 	}
 	else {
 		printf("Failed to connect!\n");
-		exit(1);
+		exit(EXIT_FAILURE);
+	}
+	// spawn recv thread.
+	if(pthread_create(&tid, NULL, &recvD, NULL) != 0) {
+		printf("Failed to spawn thread\n");
+		exit(EXIT_FAILURE);
 	}
 
-	char * message = "BYE";
-	send(sockfd, message, strlen(message), 0);
+
+	char inBuff[256];
+	for(;;) {
+		fgets(inBuff, sizeof(inBuff), stdin);
+		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
+		
+		if(strcmp(inBuff, "exit") == 0) {
+			char * message = "BYE";
+			send(sockfd, message, strlen(message), 0);
+			exit(EXIT_SUCCESS);
+		}
+		else {
+			printf("Invalid input!\n");
+		}
+	}
+
 	printf("Shutting down!\n");
+}
+
+void *recvD(void * args) {
+	printf("Created recv thread!\n");
+	char recvBuff[RECVBUFF_SIZE];
+	for(;;) {
+		while(recv(sockfd, &recvBuff, RECVBUFF_SIZE, 0) > 0) {
+			if(strcmp(recvBuff, "BYE") == 0) {
+				printf("Server closed connection!\n");
+				return 0;
+			}
+			if(strncmp(recvBuff, "FILE", strlen("FILE"))) {
+				char * pch;
+				strtok(recvBuff, " ");
+				pch = strtok(NULL, " ");
+				long fileLength = atol(pch);
+				long remaining = fileLength;
+
+			}
+			else {
+				printf("Unrecognised server message: %s\n", recvBuff);
+			}
+		}
+	}
 }
