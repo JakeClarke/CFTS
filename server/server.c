@@ -54,6 +54,14 @@ int main(int argc, char *argv[])
 		printf("Working dir: %s\n", wkDir);
 	}
 
+	/* Bind to socket and listen. */
+	printf("Opening socket on port: %i\n", ntohs(server.sin_port));
+
+	if(bind(sockfd, (struct sockaddr *)&server, SIZE) ==- 1) {
+		printf("Server failed to bind!\n");
+		exit(EXIT_FAILURE);
+	}
+
 
 	printf("Forking....\n");
 	pid = fork();
@@ -68,15 +76,6 @@ int main(int argc, char *argv[])
 	syslog(LOG_INFO, "Server forked!");
 
 	/* TODO change session */
-
-
-	/* Bind to socket and listen. */
-	syslog(LOG_INFO, "Opening socket on port: %i", ntohs(server.sin_port));
-
-	if(bind(sockfd, (struct sockaddr *)&server, SIZE) ==- 1) {
-		syslog(LOG_ERR, "Server failed to bind!");
-		exit(EXIT_FAILURE);
-	}
 
 	if(listen(sockfd,5) == -1) {
 		syslog(LOG_ERR, "Server failed to listen!");
