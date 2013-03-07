@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #define SIZE sizeof(struct sockaddr_in)
 
 int sockfd, clientsockfd;
@@ -22,7 +23,7 @@ int main(int argc, char *argv[])
 	server.sin_addr.s_addr=INADDR_ANY;
 	server.sin_port=htons(4321);
 
-	printf("hello server!\n");
+	printf("AOS server.\n");
 	setlogmask(LOG_UPTO (LOG_DEBUG));
 	openlog("AOS-server", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
 	syslog(LOG_INFO, "Server started!");
@@ -50,6 +51,8 @@ int main(int argc, char *argv[])
 		printf("Working dir: %s\n", wkDir);
 	}
 
+
+	printf("Forking....\n");
 	pid = fork();
 	if(pid < 0) {
 		syslog(LOG_ERR, "%s\n", perror);
@@ -78,4 +81,31 @@ int main(int argc, char *argv[])
 	}
 
 	syslog(LOG_DEBUG, "Socket successfully bind and listening");
+
+	struct sockaddr addr;
+	socklen_t addrlen;
+	char clientAdd[INET_ADDRSTRLEN];
+
+	for(;;) {
+
+		clientsockfd = accept(sockfd, &addr, &addrlen);
+		inet_ntop(addr.sa_family, &addr.sa_data, clientAdd, addrlen);
+		syslog(LOG_INFO, "Client Connected! %s", clientAdd);
+		if(fork() == 0) {
+			char clientReq[256];
+
+			while(recv(clientsockfd, &clientReq, 256, 0) > 0) {
+				syslog(LOG_DEBUG, "client request: %s", clientReq);
+				if (strcmp(clientReq, "BYE") == 0)
+				{
+					syslog(LOG_INFO, "Client disconnected!");
+					exit(EXIT_SUCCESS);
+				}
+			}
+
+		}
+
+		close(clientsockfd);
+
+	}
 }
