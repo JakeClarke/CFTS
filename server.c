@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include "messages.h"
 
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 256
@@ -94,23 +95,23 @@ int main(int argc, char *argv[])
 		inet_ntop(addr.sa_family, &addr.sa_data, &clientAdd[0], addrlen);
 		syslog(LOG_INFO, "Client Connected! %s", clientAdd);
 		if(fork() == 0) {
-			char clientReq[CLIENTBUFF_SIZE] = {0};
+			CMD_T clientReq = -1;
+			char clientBuff[CLIENTBUFF_SIZE] = {0};
 
-			while(recv(clientsockfd, &clientReq[0], CLIENTBUFF_SIZE, 0) > 0) {
-				syslog(LOG_DEBUG, "Client request: %s", clientReq);
-				if (strcmp(clientReq, "BYE") == 0)
+			while(recv(clientsockfd, &clientReq, sizeof(CMD_T), 0) > 0) {
+				syslog(LOG_DEBUG, "Client request: %i", clientReq);
+				if (clientReq == CMD_BYE)
 				{
 					syslog(LOG_INFO, "Client disconnected!");
 					exit(EXIT_SUCCESS);
 				}
-				else if(strcmp(clientReq, "SHUTDOWN") == 0) {
+				else if(clientReq == CMD_SHUTDOWN) {
 					syslog(LOG_INFO, "Shutdown recieved!");
 					kill(0, SIGTERM);
 				}
 				else {
-					syslog(LOG_ERR, "Unrecognised client request: %s", clientReq);
+					syslog(LOG_ERR, "Unrecognised client request: %i", clientReq);
 				}
-				memset(&clientReq, 0, CLIENTBUFF_SIZE);
 			}
 
 		}

@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include "messages.h"
 
 #define SIZE sizeof(struct sockaddr_in)
 #define RECVBUFF_SIZE 1024
@@ -47,14 +48,12 @@ int main()
 		fgets(inBuff, sizeof(inBuff), stdin);
 		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
 		
-		if(strcmp(inBuff, "exit") == 0) {
-			char * message = "BYE";
-			send(sockfd, message, strlen(message), 0);
+		if(strcmp(inBuff, "bye") == 0) {
+			send(sockfd, &CMD_BYE, sizeof(CMD_GET), 0);
 			exit(EXIT_SUCCESS);
 		}
 		else if(strcmp(inBuff, "shutdown") == 0) {
-			char * message = "SHUTDOWN";
-			send(sockfd, message, strlen(message), 0);
+			send(sockfd, &CMD_SHUTDOWN, sizeof(CMD_SHUTDOWN), 0);
 			exit(EXIT_SUCCESS);
 		}
 		else {
