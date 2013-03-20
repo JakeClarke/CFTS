@@ -90,11 +90,12 @@ void *recvD(void * args) {
 				printf("Incoming file!\n");
 				int length;
 				recv(sockfd, &length, sizeof(length), 0);
-				char fileName[length];
-				recv(sockfd, &fileName[0], length * sizeof(char), 0);
+				char * fileName = (char *)malloc(length);
+				recv(sockfd, fileName, length, 0);
 				
 				//memcpy(&fileName, &recvBuff, length);
 				//printBuff(&recvBuff[0], length);
+				printf("Recieving filename length: %i\n", length);
 				printf("Recieving file: %s\n", fileName);
 
 				long fileLength;
@@ -103,6 +104,7 @@ void *recvD(void * args) {
 				long remaining = fileLength;
 
 				int fileFD = creat(fileName, S_IRWXU);
+				free(fileName);
 
 				if(fileFD > 0) {
 

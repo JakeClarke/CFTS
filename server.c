@@ -12,7 +12,9 @@
 #include "messages.h"
 
 #define SIZE sizeof(struct sockaddr_in)
-#define CLIENTBUFF_SIZE 256
+#define CLIENTBUFF_SIZE 1024
+
+#warning "Remember to setsid"
 
 int sockfd, clientsockfd;
 
@@ -115,7 +117,7 @@ int main(int argc, char *argv[])
 					syslog(LOG_DEBUG, "Client file request recieved.");
 					// recieve the filename.
 					int length = recv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
-					syslog(LOG_DEBUG, "%s - %i", clientBuff, length);
+					syslog(LOG_DEBUG, "recieved: %s - %i", clientBuff, length);
 					// copy it for later.
 					char fileName[length + 1];
 					fileName[length] = '\0';
@@ -150,10 +152,10 @@ void sendFile(int socket, char * file) {
 		lseek(fileFD, 0, SEEK_SET);
 
 		send(socket, &SERVE_FILE, sizeof(SERVE_FILE), 0);
-		int fileNameLength = strlen(file);
+		int fileNameLength = (strlen(file) + 1) * sizeof(char);
 		syslog(LOG_DEBUG, "File name length: %i", fileNameLength);
 		send(socket, &fileNameLength, sizeof(fileNameLength), 0);
-		send(socket, &file, strlen(file) * sizeof(char), 0);
+		send(socket, file, fileNameLength * sizeof(char), 0);
 		send(socket, &fileLength, sizeof(fileLength), 0);
 
 		// wait for the client to ready.
