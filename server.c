@@ -8,12 +8,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <fcntl.h>
 #include "messages.h"
 
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 256
 
 int sockfd, clientsockfd;
+
+void sendFile(int,char*);
 
 int main(int argc, char *argv[]) 
 {
@@ -27,10 +30,9 @@ int main(int argc, char *argv[])
 	server.sin_addr.s_addr=INADDR_ANY;
 	server.sin_port=htons(4321);
 
-	printf("AOS server.\n");
+	printf("AOS-server.\n");
 	setlogmask(LOG_UPTO (LOG_DEBUG));
 	openlog("AOS-server", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
-	syslog(LOG_INFO, "Server started!");
 
 	for (int i = 0; i < argc; ++i)
 	{
@@ -109,14 +111,88 @@ int main(int argc, char *argv[])
 					syslog(LOG_INFO, "Shutdown recieved!");
 					kill(0, SIGTERM);
 				}
+				else if(clientReq == CMD_GET) {
+					syslog(LOG_DEBUG, "Client file request recieved.");
+					// recieve the filename.
+					int length = recv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
+					syslog(LOG_DEBUG, "%s - %i", clientBuff, length);
+					// copy it for later.
+					char fileName[length + 1];
+					fileName[length] = '\0';
+					memcpy(&fileName[0], &clientBuff[0], length);
+
+					sendFile(clientsockfd, &fileName[0]);
+
+				}
 				else {
 					syslog(LOG_ERR, "Unrecognised client request: %i", clientReq);
 				}
+
+				memset(&clientBuff[0],0, sizeof(clientBuff));
 			}
 
 		}
 
 		close(clientsockfd);
 
+	}
+}
+
+void sendFile(int socket, char * file) {
+	syslog(LOG_INFO, "Client requested file: %s", file);
+	char clientBuff[CLIENTBUFF_SIZE] = {0};
+
+	int fileFD = open(file, O_RDONLY);
+	if(fileFD > -1) {
+		long fileLength = lseek(fileFD, 0, SEEK_END);
+		syslog(LOG_DEBUG, "File length: %ld", fileLength);
+
+		lseek(fileFD, 0, SEEK_SET);
+
+		send(socket, &SERVE_FILE, sizeof(SERVE_FILE), 0);
+		int fileNameLength = strlen(file);
+		syslog(LOG_DEBUG, "File name length: %i", fileNameLength);
+		send(socket, &fileNameLength, sizeof(fileNameLength), 0);
+		send(socket, &file, strlen(file) * sizeof(char), 0);
+		send(socket, &fileLength, sizeof(fileLength), 0);
+
+		// wait for the client to ready.
+		CMD_T clientConf;
+
+		recv(socket, &clientConf, sizeof(clientConf), 0);
+
+		if(clientConf != SERVE_GET_BEGIN) {
+			syslog(LOG_ERR, "Client refused download!");
+			return;
+		}
+			
+
+		syslog(LOG_DEBUG, "Sending!");
+
+		long currentPos = 0;
+
+		while(currentPos < fileLength) {
+			int size = read(fileFD, &clientBuff[0], sizeof(clientBuff));
+
+			if(size == -1) {
+				syslog(LOG_CRIT, "Could not read the file.");
+				exit(EXIT_FAILURE);
+			}
+
+			if(send(socket, &clientBuff[0], size, 0) == -1)
+			{
+				syslog(LOG_CRIT, "Connection interupted!");
+				exit(EXIT_FAILURE);
+			}
+
+			currentPos += size;
+		}
+
+		close(fileFD);
+		syslog(LOG_INFO, "Complete!");
+	}
+	else {
+		syslog(LOG_ERR, "File could not be opened");
+		send(socket, &SERVE_GET_ERROR_NOTFOUND, sizeof(SERVE_GET_ERROR_NOTFOUND), 0);
 	}
 }
