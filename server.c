@@ -14,8 +14,6 @@
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 1024
 
-#warning "Remember to setsid"
-
 int sockfd, clientsockfd;
 
 void sendFile(int,char*);
@@ -71,16 +69,19 @@ int main(int argc, char *argv[])
 	printf("Forking....\n");
 	pid = fork();
 	if(pid < 0) {
-		syslog(LOG_ERR, "%s\n", perror);
+		syslog(LOG_CRIT, "Failed to fork: %s\n", perror);
 		exit(EXIT_FAILURE);
 	}
 
 	if(pid > 0) /* get rid of the parent. */
 		exit(EXIT_SUCCESS);
 
-	syslog(LOG_INFO, "Server forked!");
+	if(setsid() == -1) {
+		syslog(LOG_CRIT, "Failed to set session id!\n");
+		exit(EXIT_FAILURE);
+	}
 
-	/* TODO change session */
+	syslog(LOG_INFO, "Server forked!");
 
 	if(listen(sockfd,5) == -1) {
 		syslog(LOG_ERR, "Server failed to listen!");
