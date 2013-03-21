@@ -2,6 +2,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -134,6 +135,15 @@ int main(int argc, char *argv[])
 				memset(&clientBuff[0],0, sizeof(clientBuff));
 			}
 
+		}
+		else {
+			// clear children.
+			int chPid = waitpid(0, NULL, WNOHANG);
+			while(chPid > 0)
+			{
+				syslog(LOG_DEBUG, "Cleared child process: %i", chPid);
+				chPid = waitpid(0, NULL, WNOHANG);
+			}
 		}
 
 		close(clientsockfd);
