@@ -3,12 +3,12 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include "messages.h"
+#include "enc.h"
 
 #define SIZE sizeof(struct sockaddr_in)
 #define RECVBUFF_SIZE 1024
@@ -51,18 +51,18 @@ int main()
 		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
 		
 		if(strcmp(inBuff, "bye") == 0) {
-			send(sockfd, &CMD_BYE, sizeof(CMD_GET), 0);
+			esend(sockfd, &CMD_BYE, sizeof(CMD_GET), 0);
 			exit(EXIT_SUCCESS);
 		}
 		else if(strcmp(inBuff, "shutdown") == 0) {
-			send(sockfd, &CMD_SHUTDOWN, sizeof(CMD_SHUTDOWN), 0);
+			esend(sockfd, &CMD_SHUTDOWN, sizeof(CMD_SHUTDOWN), 0);
 			exit(EXIT_SUCCESS);
 		}
 		else if(strncmp(inBuff, "get", 3) == 0) {
 			if(strlen(inBuff) - 4 > 0) {
 				printf("%s\n", &inBuff[4]);
-				send(sockfd, &CMD_GET, sizeof(CMD_GET), 0);
-				send(sockfd, &inBuff[4], strlen(&inBuff[4]) * sizeof(char), 0);
+				esend(sockfd, &CMD_GET, sizeof(CMD_GET), 0);
+				esend(sockfd, &inBuff[4], strlen(&inBuff[4]) * sizeof(char), 0);
 			}
 			else {
 				printf("File name required!\n");
@@ -81,7 +81,7 @@ void *recvD(void * args) {
 	char recvBuff[RECVBUFF_SIZE];
 	CMD_T servMsg = -1;
 	for(;;) {
-		while(recv(sockfd, &servMsg, sizeof(servMsg), 0) > 0) {
+		while(drecv(sockfd, &servMsg, sizeof(servMsg), 0) > 0) {
 			if(servMsg == SERVE_BYE) {
 				printf("Server closed connection!\n");
 				exit(EXIT_SUCCESS);
@@ -89,9 +89,9 @@ void *recvD(void * args) {
 			else if(servMsg == SERVE_FILE) {
 				printf("Incoming file!\n");
 				int length;
-				recv(sockfd, &length, sizeof(length), 0);
+				drecv(sockfd, &length, sizeof(length), 0);
 				char * fileName = (char *)malloc(length);
-				recv(sockfd, fileName, length, 0);
+				drecv(sockfd, fileName, length, 0);
 				
 				//memcpy(&fileName, &recvBuff, length);
 				//printBuff(&recvBuff[0], length);
@@ -99,7 +99,7 @@ void *recvD(void * args) {
 				printf("Recieving file: %s\n", fileName);
 
 				long fileLength;
-				recv(sockfd, &fileLength, sizeof(fileLength), 0);
+				drecv(sockfd, &fileLength, sizeof(fileLength), 0);
 				printf("Size file: %ld\n", fileLength);
 				long remaining = fileLength;
 
@@ -108,9 +108,9 @@ void *recvD(void * args) {
 
 				if(fileFD > 0) {
 
-					send(sockfd, &SERVE_GET_BEGIN, sizeof(SERVE_GET_BEGIN), 0);
+					esend(sockfd, &SERVE_GET_BEGIN, sizeof(SERVE_GET_BEGIN), 0);
 					while (remaining > 0) {
-						int in = recv(sockfd, &recvBuff, RECVBUFF_SIZE, 0);
+						int in = drecv(sockfd, &recvBuff, RECVBUFF_SIZE, 0);
 						write(fileFD, &recvBuff, in);
 						remaining -= in;
 						printf("%i\n", in);
@@ -119,7 +119,7 @@ void *recvD(void * args) {
 					printf("File download complete!\n");
 				}
 				else {
-					send(sockfd, &SERVE_GET_ERROR_CANNOTCREATE, sizeof(SERVE_GET_BEGIN), 0);
+					esend(sockfd, &SERVE_GET_ERROR_CANNOTCREATE, sizeof(SERVE_GET_BEGIN), 0);
 					printf("Failed to create file!\n");
 					exit(EXIT_FAILURE);
 				}

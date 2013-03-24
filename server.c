@@ -5,12 +5,12 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
 #include <fcntl.h>
 #include "messages.h"
+#include "enc.h"
 
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 1024
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 			CMD_T clientReq = -1;
 			char clientBuff[CLIENTBUFF_SIZE] = {0};
 
-			while(recv(clientsockfd, &clientReq, sizeof(CMD_T), 0) > 0) {
+			while(drecv(clientsockfd, &clientReq, sizeof(CMD_T), 0) > 0) {
 				syslog(LOG_DEBUG, "Client request: %i", clientReq);
 				if (clientReq == CMD_BYE)
 				{
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
 				else if(clientReq == CMD_GET) {
 					syslog(LOG_DEBUG, "Client file request recieved.");
 					// recieve the filename.
-					int length = recv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
+					int length = drecv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
 					syslog(LOG_DEBUG, "recieved: %s - %i", clientBuff, length);
 					// copy it for later.
 					char fileName[length + 1];
@@ -162,17 +162,17 @@ void sendFile(int socket, char * file) {
 
 		lseek(fileFD, 0, SEEK_SET);
 
-		send(socket, &SERVE_FILE, sizeof(SERVE_FILE), 0);
+		esend(socket, &SERVE_FILE, sizeof(SERVE_FILE), 0);
 		int fileNameLength = (strlen(file) + 1) * sizeof(char);
 		syslog(LOG_DEBUG, "File name length: %i", fileNameLength);
-		send(socket, &fileNameLength, sizeof(fileNameLength), 0);
-		send(socket, file, fileNameLength * sizeof(char), 0);
-		send(socket, &fileLength, sizeof(fileLength), 0);
+		esend(socket, &fileNameLength, sizeof(fileNameLength), 0);
+		esend(socket, file, fileNameLength * sizeof(char), 0);
+		esend(socket, &fileLength, sizeof(fileLength), 0);
 
 		// wait for the client to ready.
 		CMD_T clientConf;
 
-		recv(socket, &clientConf, sizeof(clientConf), 0);
+		drecv(socket, &clientConf, sizeof(clientConf), 0);
 
 		if(clientConf != SERVE_GET_BEGIN) {
 			syslog(LOG_ERR, "Client refused download!");
@@ -192,7 +192,7 @@ void sendFile(int socket, char * file) {
 				exit(EXIT_FAILURE);
 			}
 
-			if(send(socket, &clientBuff[0], size, 0) == -1)
+			if(esend(socket, &clientBuff[0], size, 0) == -1)
 			{
 				syslog(LOG_CRIT, "Connection interupted!");
 				exit(EXIT_FAILURE);
@@ -206,6 +206,6 @@ void sendFile(int socket, char * file) {
 	}
 	else {
 		syslog(LOG_ERR, "File could not be opened");
-		send(socket, &SERVE_GET_ERROR_NOTFOUND, sizeof(SERVE_GET_ERROR_NOTFOUND), 0);
+		esend(socket, &SERVE_GET_ERROR_NOTFOUND, sizeof(SERVE_GET_ERROR_NOTFOUND), 0);
 	}
 }

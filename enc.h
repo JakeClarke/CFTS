@@ -2,12 +2,11 @@
 #define ENC_H
 #include <sys/socket.h>
 
-
-const char MAGIC_NUMBER = 142;
+#define MAGIC_NUMBER 142;
 
 ssize_t esend(int sockfd, const void *buf, size_t len, int flags) {
 
-	char ebuf[len];
+	char ebuf[len]; // temp buffer, don't want to edit our source buffer.
 
 	for(int i = 0; i < len; i++) {
 		ebuf[i] = ((char *)buf)[i] ^ MAGIC_NUMBER;
@@ -23,7 +22,7 @@ ssize_t drecv(int sockfd, void *buf, size_t len, int flags)  {
 		((char *)buf)[i] = ((char *)buf)[i] ^ MAGIC_NUMBER;
 	}
 
-	return len;
+	return rlen;
 }
 
 #endif
