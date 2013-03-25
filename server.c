@@ -17,13 +17,15 @@
 
 int sockfd, clientsockfd;
 
+int numberOfChilren = 5;
+char * wkDir = "./";
+char * configLoc = "~/.AOS.config";
+
 void sendFile(int,char*);
 
 int main(int argc, char *argv[]) 
 {
-	pid_t pid;
-	char * configLoc = "~/.AOS.config";
-	char * wkDir = "./";
+	pid_t pid = 0, pgid = 0;
 
 	struct sockaddr_in server;
 	sockfd = socket(PF_INET, SOCK_STREAM, 0);
@@ -66,21 +68,43 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-
 	printf("Forking....\n");
-	pid = fork();
-	if(pid < 0) {
-		syslog(LOG_CRIT, "Failed to fork: %s\n", perror);
-		exit(EXIT_FAILURE);
+	for(int forkNum = 0; forkNum < numberOfChilren; forkNum++) 
+	{
+		pid = fork();
+		if(pid < 0) {
+			syslog(LOG_CRIT, "Failed to fork: %s\n", perror);
+			exit(EXIT_FAILURE);
+		}
+
+
+		if(pgid == 0 && pid != 0) {
+			pgid = pid;
+		}
+
+		if(pid == 0) {
+
+			if(setsid() == -1) {
+				syslog(LOG_ERR, "Failed to set session id!\n");
+			}
+
+			syslog(LOG_DEBUG, "Setting process group to: %i\n", pgid);
+			if(setpgid(0, pgid) == -1) {
+				syslog(LOG_ERR, "Failed to set process group id!\n");
+			}
+			else {
+				syslog(LOG_DEBUG, "Set process group to: %i", getpgrp());
+			}
+
+			break;
+		}
+		
 	}
+
+
 
 	if(pid > 0) /* get rid of the parent. */
 		exit(EXIT_SUCCESS);
-
-	if(setsid() == -1) {
-		syslog(LOG_CRIT, "Failed to set session id!\n");
-		exit(EXIT_FAILURE);
-	}
 
 	syslog(LOG_INFO, "Server forked!");
 
@@ -113,7 +137,7 @@ int main(int argc, char *argv[])
 				}
 				else if(clientReq == CMD_SHUTDOWN) {
 					syslog(LOG_INFO, "Shutdown recieved!");
-					kill(0, SIGTERM);
+					kill(-2, SIGTERM);
 				}
 				else if(clientReq == CMD_GET) {
 					syslog(LOG_DEBUG, "Client file request recieved.");
