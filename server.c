@@ -157,14 +157,15 @@ void sendFile(int socket, char * file) {
 
 	int fileFD = open(file, O_RDONLY);
 	if(fileFD > -1) {
-		long fileLength = lseek(fileFD, 0, SEEK_END);
+		long fileLength = lseek(fileFD, 0, SEEK_END); // get the file length
 		syslog(LOG_DEBUG, "File length: %ld", fileLength);
 
-		lseek(fileFD, 0, SEEK_SET);
+		lseek(fileFD, 0, SEEK_SET); // go back the start of our file.
 
-		esend(socket, &SERVE_FILE, sizeof(SERVE_FILE), 0);
-		int fileNameLength = (strlen(file) + 1) * sizeof(char);
+		esend(socket, &SERVE_FILE, sizeof(SERVE_FILE), 0); // tell the client that we are about send a file.
+		int fileNameLength = (strlen(file) + 1) * sizeof(char); // send the file name plus the null terminator.
 		syslog(LOG_DEBUG, "File name length: %i", fileNameLength);
+		// after collecting all the details for file download send it to the client.
 		esend(socket, &fileNameLength, sizeof(fileNameLength), 0);
 		esend(socket, file, fileNameLength * sizeof(char), 0);
 		esend(socket, &fileLength, sizeof(fileLength), 0);
@@ -189,6 +190,7 @@ void sendFile(int socket, char * file) {
 
 			if(size == -1) {
 				syslog(LOG_CRIT, "Could not read the file.");
+				// need to so something a little bit more graceful then just dumping out. The client will have no idea what happened to the server at this point.
 				exit(EXIT_FAILURE);
 			}
 
