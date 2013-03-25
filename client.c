@@ -113,7 +113,7 @@ void *recvD(void * args) {
 						int in = drecv(sockfd, &recvBuff, RECVBUFF_SIZE, 0);
 						write(fileFD, &recvBuff, in);
 						remaining -= in;
-						printf("%i\n", in);
+						printf("Progress: %ld/%lu\n", (fileLength - remaining), fileLength);
 					}
 					close(fileFD);
 					printf("File download complete!\n");

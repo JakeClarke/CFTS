@@ -69,7 +69,15 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Forking....\n");
-	for(int forkNum = 0; forkNum < numberOfChilren; forkNum++) 
+	pid = fork();
+	if(pid > 0) /* get rid of the parent. */
+		exit(EXIT_SUCCESS);
+
+	if(setsid() == -1) {
+		syslog(LOG_ERR, "Failed to set session id!\n");
+	}
+
+	for(int forkNum = 0; forkNum < numberOfChilren - 1; forkNum++) 
 	{
 		pid = fork();
 		if(pid < 0) {
@@ -77,34 +85,13 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-
 		if(pgid == 0 && pid != 0) {
 			pgid = pid;
 		}
 
-		if(pid == 0) {
-
-			if(setsid() == -1) {
-				syslog(LOG_ERR, "Failed to set session id!\n");
-			}
-
-			syslog(LOG_DEBUG, "Setting process group to: %i\n", pgid);
-			if(setpgid(0, pgid) == -1) {
-				syslog(LOG_ERR, "Failed to set process group id!\n");
-			}
-			else {
-				syslog(LOG_DEBUG, "Set process group to: %i", getpgrp());
-			}
-
+		if(pid == 0)
 			break;
-		}
-		
 	}
-
-
-
-	if(pid > 0) /* get rid of the parent. */
-		exit(EXIT_SUCCESS);
 
 	syslog(LOG_INFO, "Server forked!");
 
@@ -137,7 +124,7 @@ int main(int argc, char *argv[])
 				}
 				else if(clientReq == CMD_SHUTDOWN) {
 					syslog(LOG_INFO, "Shutdown recieved!");
-					kill(-2, SIGTERM);
+					kill(0, SIGTERM);
 				}
 				else if(clientReq == CMD_GET) {
 					syslog(LOG_DEBUG, "Client file request recieved.");
