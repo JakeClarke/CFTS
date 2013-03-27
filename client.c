@@ -12,8 +12,10 @@
 
 #define SIZE sizeof(struct sockaddr_in)
 #define RECVBUFF_SIZE 1024
+#define FILEBUFF_SIZE 1024
 
 void *recvD(void *);
+void sendFile(int, int, char *);
 void printBuff(char *, int);
 
 pthread_t tid;
@@ -63,6 +65,24 @@ int main()
 				printf("%s\n", &inBuff[4]);
 				esend(sockfd, &CMD_GET, sizeof(CMD_GET), 0);
 				esend(sockfd, &inBuff[4], strlen(&inBuff[4]) * sizeof(char), 0);
+			}
+			else {
+				printf("File name required!\n");
+			}
+		}
+		else if (strncmp(inBuff, "put", 3)) {
+			if(strlen(inBuff) - 4 > 0) {
+				printf("%s\n", &inBuff[4]);
+				// open the file before sending the request.
+				int fileFD = open(&inBuff[4], O_RDONLY);
+				if (fileFD > 0) {
+					sendFile(sockfd, fileFD, &inBuff[4]);
+
+					close(fileFD);
+				}
+				else {
+					printf("Could not open file\n");
+				}
 			}
 			else {
 				printf("File name required!\n");
@@ -131,6 +151,31 @@ void *recvD(void * args) {
 				printf("Unrecognised server message: %i\n", servMsg);
 			}
 		}
+	}
+}
+
+void sendFile(int sockFD, int fileFD, char * fileName) {
+
+	const long fileLength = lseek(fileFD, 0, SEEK_END);
+	if(fileLength == -1 && lseek(fileFD, 0, SEEK_SET) != 0) {
+		printf("File seek failed\n");
+		return;
+	}
+
+	esend(sockFD, &CMD_PUT, sizeof(CMD_PUT), 0);
+	esend(sockFD, &fileName, strlen(fileName) * sizeof(char), 0);
+	esend(sockFD, &fileLength, sizeof(fileLength), 0);
+
+	long remaining = fileLength;
+
+	char fileBuff[FILEBUFF_SIZE];
+
+	while(remaining > 0) {
+		int size = read(fileFD, &fileBuff[0], sizeof(fileBuff) * sizeof(char));
+
+		esend(sockfd, &fileBuff[0], size, 0);
+
+		remaining -= size;
 	}
 }
 

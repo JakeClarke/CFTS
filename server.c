@@ -14,6 +14,7 @@
 
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 1024
+#define CLIENT_RECV_BUFF_SIZE 1024
 
 int sockfd, clientsockfd;
 
@@ -22,6 +23,7 @@ char * wkDir = "./";
 char * configLoc = "~/.AOS.config";
 
 void sendFile(int,char*);
+void recvFile(int,char*);
 
 int main(int argc, char *argv[]) 
 {
@@ -77,7 +79,7 @@ int main(int argc, char *argv[])
 		syslog(LOG_ERR, "Failed to set session id!\n");
 	}
 
-	for(int forkNum = 0; forkNum < numberOfChilren - 1; forkNum++) 
+	for(int forkNum = 1; forkNum < numberOfChilren; forkNum++) 
 	{
 		pid = fork();
 		if(pid < 0) {
@@ -127,17 +129,31 @@ int main(int argc, char *argv[])
 					kill(0, SIGTERM);
 				}
 				else if(clientReq == CMD_GET) {
-					syslog(LOG_DEBUG, "Client file request recieved.");
+					syslog(LOG_INFO, "Client file request recieved.");
 					// recieve the filename.
 					int length = drecv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
 					syslog(LOG_DEBUG, "recieved: %s - %i", clientBuff, length);
 					// copy it for later.
 					char fileName[length + 1];
 					fileName[length] = '\0';
-					memcpy(&fileName[0], &clientBuff[0], length);
+					memcpy(&fileName[0], &clientBuff[0], length * sizeof(char));
 
 					sendFile(clientsockfd, &fileName[0]);
 
+				}
+				else if (clientReq == CMD_PUT)
+				{
+					syslog(LOG_INFO, "Client file upload request recieved.");
+					int length = drecv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
+					syslog(LOG_DEBUG, "recieved: %s - %i", clientBuff, length);
+
+					// copy it for later.
+					char fileName[length + 1];
+					fileName[length] = '\0';
+
+					memcpy(&fileName[0], &clientBuff[0], length * sizeof(char));
+
+					recvFile(clientsockfd, &fileName[0]);
 				}
 				else {
 					syslog(LOG_ERR, "Unrecognised client request: %i", clientReq);
@@ -159,6 +175,35 @@ int main(int argc, char *argv[])
 
 		close(clientsockfd);
 
+	}
+}
+
+void recvFile(int socket, char * file) {
+	int fileFD = creat(file, S_IRWXU);
+
+	if(fileFD > 0) {
+		long fileLength;
+		drecv(socket, &fileLength, sizeof(fileLength), 0);
+		syslog(LOG_INFO, "Incoming file: %s, Size: %ld", file, fileLength);
+		char recvBuff[CLIENT_RECV_BUFF_SIZE];
+		while (fileLength > 0) {
+			int in = drecv(socket, &recvBuff[0], sizeof(char) * CLIENT_RECV_BUFF_SIZE, 0);
+
+			if(in <= 0) {
+				syslog(LOG_CRIT, "Failed to recieve data!");
+				exit(EXIT_FAILURE);
+			}
+			write(fileFD, &recvBuff, in);
+
+			fileLength -= in;
+		}
+
+		syslog(LOG_INFO, "File transfer complete!");
+		close(fileFD);
+	}
+	else {
+		syslog(LOG_ERR, "Failed to create file: %s", file);
+		exit(EXIT_FAILURE);
 	}
 }
 
