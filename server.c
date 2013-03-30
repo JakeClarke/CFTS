@@ -144,14 +144,13 @@ int main(int argc, char *argv[])
 				else if (clientReq == CMD_PUT)
 				{
 					syslog(LOG_INFO, "Client file upload request recieved.");
-					int length = drecv(clientsockfd, &clientBuff[0], sizeof(clientBuff), 0);
-					syslog(LOG_DEBUG, "recieved: %s - %i", clientBuff, length);
+					size_t fileNameLength;
+					drecv(clientsockfd, &fileNameLength, sizeof(fileNameLength), 0);
+					char fileName[fileNameLength + 1];
 
 					// copy it for later.
-					char fileName[length + 1];
-					fileName[length] = '\0';
-
-					memcpy(&fileName[0], &clientBuff[0], length * sizeof(char));
+					drecv(clientsockfd, &fileName[0], fileNameLength, 0);
+					fileName[fileNameLength] = '\0';
 
 					recvFile(clientsockfd, &fileName[0]);
 				}

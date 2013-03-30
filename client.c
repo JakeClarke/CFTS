@@ -70,7 +70,7 @@ int main()
 				printf("File name required!\n");
 			}
 		}
-		else if (strncmp(inBuff, "put", 3)) {
+		else if (strncmp(inBuff, "put", 3) == 0) {
 			if(strlen(inBuff) - 4 > 0) {
 				printf("%s\n", &inBuff[4]);
 				// open the file before sending the request.
@@ -87,6 +87,9 @@ int main()
 			else {
 				printf("File name required!\n");
 			}
+		}
+		else if (strncmp(inBuff, "help", 3) == 0) {
+			printf("Supported commands:\nGet - get a file.\nPut - put a file.\nBye - logout.\nShutdown - shutdown the server.\n");
 		}
 		else {
 			printf("Invalid input!\n");
@@ -157,13 +160,15 @@ void *recvD(void * args) {
 void sendFile(int sockFD, int fileFD, char * fileName) {
 
 	const long fileLength = lseek(fileFD, 0, SEEK_END);
-	if(fileLength == -1 && lseek(fileFD, 0, SEEK_SET) != 0) {
+	if(fileLength == -1 || lseek(fileFD, 0, SEEK_SET) != 0) {
 		printf("File seek failed\n");
 		return;
 	}
 
 	esend(sockFD, &CMD_PUT, sizeof(CMD_PUT), 0);
-	esend(sockFD, &fileName, strlen(fileName) * sizeof(char), 0);
+	size_t fileNameLen = strlen(fileName);
+	esend(sockfd, &fileNameLen, sizeof(fileNameLen), 0);
+	esend(sockFD, fileName, fileNameLen * sizeof(char), 0);
 	esend(sockFD, &fileLength, sizeof(fileLength), 0);
 
 	long remaining = fileLength;
@@ -171,12 +176,23 @@ void sendFile(int sockFD, int fileFD, char * fileName) {
 	char fileBuff[FILEBUFF_SIZE];
 
 	while(remaining > 0) {
-		int size = read(fileFD, &fileBuff[0], sizeof(fileBuff) * sizeof(char));
+		int size = read(fileFD, &fileBuff[0], sizeof(fileBuff));
+		
+		if(size == -1) {
+			printf("File read error!\n");
+			exit(EXIT_FAILURE);
+		}
 
-		esend(sockfd, &fileBuff[0], size, 0);
-
+		if(esend(sockfd, &fileBuff[0], size, 0) == -1) {
+			printf("Data send error!\n");
+			exit(EXIT_FAILURE);
+		}
 		remaining -= size;
+		
+		printf("Progress: %ld/%ld\n", fileLength - remaining, fileLength);
 	}
+
+	printf("Put file operation complete!\n");
 }
 
 void printBuff(char * buff, int length) {
