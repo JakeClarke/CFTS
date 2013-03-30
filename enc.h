@@ -12,7 +12,7 @@ ssize_t esend(int sockfd, const void *buf, size_t len, int flags) {
 		ebuf[i] = ((char *)buf)[i] ^ MAGIC_NUMBER; // xor with the magic number to get our encrypted form.
 	}
 
-	return send(sockfd, &ebuf, len, flags); // send.
+	return send(sockfd, &ebuf[0], len, flags); // send.
 }
 
 ssize_t drecv(int sockfd, void *buf, size_t len, int flags)  {
