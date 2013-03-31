@@ -21,6 +21,7 @@ int sockfd, clientsockfd;
 int numberOfChilren = 5;
 char * wkDir = "./";
 char * configLoc = "~/.AOS.config";
+char wdChanged = 0;
 
 void sendFile(int,char*);
 void recvFile(int,char*);
@@ -153,6 +154,26 @@ int main(int argc, char *argv[])
 					fileName[fileNameLength] = '\0';
 
 					recvFile(clientsockfd, &fileName[0]);
+				}
+				else if (clientReq == CMD_CD) {
+					size_t newWDLength;
+					drecv(clientsockfd, &newWDLength, sizeof(newWDLength), 0);
+					if(wdChanged)
+						free(wkDir);
+					wkDir = malloc((newWDLength + 1) * sizeof(char));
+					wdChanged = 1;
+
+					drecv(clientsockfd, &wkDir[0], newWDLength, 0);
+					wkDir[newWDLength] = '\0';
+
+					if(chdir(wkDir) == 0) {
+						esend(clientsockfd, &SERVE_CD_SUCCESS, sizeof(SERVE_CD_SUCCESS), 0);
+						syslog(LOG_INFO, "Successfully set working dir: %s", wkDir);
+					}
+					else {
+						esend(clientsockfd, &SERVE_CD_FAILED, sizeof(SERVE_CD_FAILED), 0);
+						syslog(LOG_ERR, "Failed to set working dir: %s", wkDir);
+					}
 				}
 				else {
 					syslog(LOG_ERR, "Unrecognised client request: %i", clientReq);

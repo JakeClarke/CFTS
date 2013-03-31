@@ -88,8 +88,17 @@ int main()
 				printf("File name required!\n");
 			}
 		}
+		else if (strncmp(inBuff, "cd", 2) == 0) {
+			if(strlen(inBuff) - 3 > 0) {
+				size_t newWDLength = strlen(&inBuff[3]);
+				esend(sockfd, &CMD_CD, sizeof(CMD_CD), 0);
+				esend(sockfd, &newWDLength, sizeof(newWDLength), 0);
+				esend(sockfd, &inBuff[3], newWDLength * sizeof(char), 0);
+
+			}
+		}
 		else if (strncmp(inBuff, "help", 3) == 0) {
-			printf("Supported commands:\nGet - get a file.\nPut - put a file.\nBye - logout.\nShutdown - shutdown the server.\n");
+			printf("Supported commands:\nget - get a file.\nput - put a file.\ncd - Change directory.\nbye - logout.\nshutdown - shutdown the server.\n");
 		}
 		else {
 			printf("Invalid input!\n");
@@ -149,6 +158,12 @@ void *recvD(void * args) {
 			}
 			else if(servMsg == SERVE_GET_ERROR_NOTFOUND) {
 				printf("File not found on server!\n");
+			}
+			else if(servMsg == SERVE_CD_SUCCESS) {
+				printf("Working directory changed sucessfully.\n");
+			}
+			else if(servMsg == SERVE_CD_FAILED) {
+				printf("Working directory changed failed.\n");
 			}
 			else {
 				printf("Unrecognised server message: %i\n", servMsg);
