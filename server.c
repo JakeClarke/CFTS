@@ -15,6 +15,7 @@
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 1024
 #define CLIENT_RECV_BUFF_SIZE 1024
+#define MAX_LOGIN_ATTEMPTS 3
 
 int sockfd, clientsockfd;
 
@@ -25,6 +26,7 @@ char wdChanged = 0;
 
 void sendFile(int,char*);
 void recvFile(int,char*);
+void login(void);
 
 int main(int argc, char *argv[]) 
 {
@@ -115,6 +117,8 @@ int main(int argc, char *argv[])
 		inet_ntop(addr.sa_family, &addr.sa_data, &clientAdd[0], addrlen);
 		syslog(LOG_INFO, "Client Connected! %s", clientAdd);
 		if(fork() == 0) {
+			syslog(LOG_DEBUG, "Client login sequence started!");
+			login();
 			CMD_T clientReq = -1;
 			char clientBuff[CLIENTBUFF_SIZE] = {0};
 
@@ -286,4 +290,36 @@ void sendFile(int socket, char * file) {
 		syslog(LOG_ERR, "File could not be opened");
 		esend(socket, &SERVE_GET_ERROR_NOTFOUND, sizeof(SERVE_GET_ERROR_NOTFOUND), 0);
 	}
+}
+
+void login(void) {
+	for (int i = 0; i < MAX_LOGIN_ATTEMPTS; ++i)
+	{
+		size_t len;
+		drecv(clientsockfd, &len, sizeof(len), 0);
+		syslog(LOG_DEBUG, "len: %lu", len);
+		char userBuff[len + 1];
+		drecv(clientsockfd, &userBuff[0], len * sizeof(char), 0);
+		userBuff[len] = '\0';
+		syslog(LOG_DEBUG, "%s uname - %lu len.", userBuff, len);
+
+		drecv(clientsockfd, &len, sizeof(len), 0);
+		syslog(LOG_DEBUG, "len: %lu", len);
+		char passBuff[len + 1];
+		drecv(clientsockfd, &passBuff[0], len * sizeof(char), 0);
+		passBuff[len] = '\0';
+		syslog(LOG_DEBUG, "%s pass - %lu len.", passBuff, len);
+
+		if(1) {
+			syslog(LOG_ERR, "%s logged in.", userBuff);
+			esend(clientsockfd, &LOGIN_SUCCESS, sizeof(LOGIN_SUCCESS), 0);
+			return;
+		}
+
+		esend(clientsockfd, &LOGIN_FAIL, sizeof(LOGIN_FAIL), 0);
+	}
+
+	syslog(LOG_ERR, "Max number of login attempts reached, shutting down.");
+	esend(clientsockfd, &SERVE_BYE, sizeof(SERVE_BYE), 0);
+	exit(EXIT_FAILURE);
 }

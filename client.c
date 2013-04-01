@@ -17,6 +17,7 @@
 void *recvD(void *);
 void sendFile(int, int, char *);
 void printBuff(char *, int);
+void login(void);
 
 pthread_t tid;
 int sockfd;
@@ -40,6 +41,9 @@ int main()
 		printf("Failed to connect!\n");
 		exit(EXIT_FAILURE);
 	}
+	// login
+	login();
+
 	// spawn recv thread.
 	if(pthread_create(&tid, NULL, &recvD, NULL) != 0) {
 		printf("Failed to spawn thread\n");
@@ -217,4 +221,48 @@ void printBuff(char * buff, int length) {
 		printf("%c", buff[i]);
 	}
 	printf("\n");
+}
+
+void login(void) {
+	char userBuff[256];
+	char passBuff[256];
+	for (;;)
+	{
+		printf("Enter username:\n");
+		fgets(userBuff, sizeof(userBuff), stdin);
+		printf("Enter password:\n");
+		fgets(passBuff, sizeof(passBuff), stdin);
+		userBuff[strlen(userBuff) - 1] = '\0';
+		passBuff[strlen(passBuff) - 1] = '\0';
+
+		size_t len = strlen(userBuff);
+		esend(sockfd, &len, sizeof(len), 0);
+		esend(sockfd, &userBuff[0], len * sizeof(char), 0);
+		len = strlen(passBuff);
+		esend(sockfd, &len, sizeof(len), 0);
+		esend(sockfd, &passBuff[0], len * sizeof(char), 0);
+
+		CMD_T res = -1;
+		if (drecv(sockfd, &res, sizeof(res), 0) > 0 ) {
+			switch(res) {
+				case LOGIN_SUCCESS:
+				printf("Login sucessful.\n");
+				return;
+				case LOGIN_FAIL:
+				printf("Login failed.\n");
+				break;
+				case SERVE_BYE:
+				printf("Too many login attempts, disconnected!\n");
+				exit(EXIT_FAILURE);
+				break;
+				default:
+				printf("Unrecognised reply\n");
+				break;
+			}
+		}
+		else {
+			printf("Socket error!\n");
+			exit(EXIT_FAILURE);
+		}
+	}
 }
