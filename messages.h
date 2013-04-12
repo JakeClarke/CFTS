@@ -31,4 +31,6 @@ const CMD_T SERVE_EXEC_END = 0; //null is probably the best to send, it shouldn'
 const CMD_T LOGIN_SUCCESS = 100;
 const CMD_T LOGIN_FAIL = 101;
 
+const CMD_T ACCESS_DENIED = 403;
+
 #endif

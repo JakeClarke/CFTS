@@ -13,6 +13,7 @@
 #include <errno.h>
 #include "messages.h"
 #include "enc.h"
+#include "config.h"
 
 #define SIZE sizeof(struct sockaddr_in)
 #define CLIENTBUFF_SIZE 1024
@@ -22,9 +23,9 @@
 int sockfd, clientsockfd;
 
 int numberOfChilren = 5;
-char * wkDir = "./";
-char * configLoc = "~/.AOS.config";
-char wdChanged = 0;
+
+char * configLoc = "AOS.config";
+
 
 void sendFile(int,char*);
 void recvFile(int,char*);
@@ -56,8 +57,7 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Loading config: %s\n", configLoc);
-
-	/* TODO config loading */
+	readConfig(&configLoc[0]);
 
 	/* Change the working dir. */
 	if(chdir(wkDir) != 0) {
@@ -253,6 +253,12 @@ void recvFile(int socket, char * file) {
 
 void sendFile(int socket, char * file) {
 	syslog(LOG_INFO, "Client requested file: %s", file);
+	if(currAccess && ACC_READ != ACC_READ) {
+		syslog(LOG_ERR, "Client does not have the required permission");
+		esend(socket, &ACCESS_DENIED, sizeof(ACCESS_DENIED), 0);
+		return;
+	}
+
 	char clientBuff[CLIENTBUFF_SIZE] = {0};
 
 	int fileFD = open(file, O_RDONLY);
@@ -332,7 +338,7 @@ void login(int socket) {
 		passBuff[len] = '\0';
 		syslog(LOG_DEBUG, "%s pass - %u len.", passBuff, len);
 
-		if(1) {
+		if(authUser(&userBuff[0], &passBuff[0])) {
 			syslog(LOG_INFO, "%s logged in.", userBuff);
 			esend(socket, &LOGIN_SUCCESS, sizeof(LOGIN_SUCCESS), 0);
 			return;
@@ -347,6 +353,12 @@ void login(int socket) {
 }
 
 void execCommand(int socket, char* cmd) {
+	if(currAccess && ACC_EXEC != ACC_EXEC) {
+		syslog(LOG_ERR, "Client does not have the required permission to execute commands.");
+		esend(socket, &ACCESS_DENIED, sizeof(ACCESS_DENIED), 0);
+		return;
+	}
+
 	syslog(LOG_INFO, "Executing command: %s.", cmd);
 
 	int out[2];

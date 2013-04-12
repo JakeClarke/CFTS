@@ -187,6 +187,9 @@ void *recvD(void * args) {
 			else if(servMsg == SERVE_CD_FAILED) {
 				printf("Working directory changed failed.\n");
 			}
+			else if(servMsg == ACCESS_DENIED) {
+				printf("You do not have the required level of access.\n");
+			}
 			else {
 				printf("Unrecognised server message: %i\n", servMsg);
 			}
