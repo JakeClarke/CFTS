@@ -1,6 +1,7 @@
 #ifndef ENC_H
 #define ENC_H
 #include <sys/socket.h>
+#include <errno.h>
 
 #define MAGIC_NUMBER 142; // magic number for the xor function.
 
@@ -12,11 +13,37 @@ ssize_t esend(int sockfd, const void *buf, size_t len, int flags) {
 		ebuf[i] = ((char *)buf)[i] ^ MAGIC_NUMBER; // xor with the magic number to get our encrypted form.
 	}
 
-	return send(sockfd, &ebuf[0], len, flags); // send.
+	ssize_t rlen = send(sockfd, &ebuf[0], len, flags); // send.
+
+	if(rlen < 0) {
+		#ifndef SERVER
+		printf("Failed to send!\n");
+		printf("Error: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+		#else 
+		syslog(LOG_CRIT, "Failed to send!");
+		syslog(LOG_CRIT, "Error: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+		#endif
+	}
+	
+	return rlen;
 }
 
 ssize_t drecv(int sockfd, void *buf, size_t len, int flags)  {
-	ssize_t rlen = recv(sockfd, buf, len, flags); 
+	ssize_t rlen = recv(sockfd, buf, len, flags);
+
+	if(rlen < 0) {
+		#ifndef SERVER
+		printf("Failed to recv!\n");
+		printf("Error: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+		#else 
+		syslog(LOG_CRIT, "Failed to recv!");
+		syslog(LOG_CRIT, "Error: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+		#endif
+	}
 
 	// not using a temp buffer because we can just modify data in place.
 	for(int i = 0; i < rlen; i ++) {

@@ -1,3 +1,4 @@
+#define SERVER
 #include <stdio.h>
 #include <syslog.h>
 #include <unistd.h>
@@ -9,6 +10,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "messages.h"
 #include "enc.h"
 
@@ -26,14 +28,15 @@ char wdChanged = 0;
 
 void sendFile(int,char*);
 void recvFile(int,char*);
-void login(void);
+void login(int);
+void execCommand(int,char*);
 
 int main(int argc, char *argv[]) 
 {
 	pid_t pid = 0, pgid = 0;
 
 	struct sockaddr_in server;
-	sockfd = socket(PF_INET, SOCK_STREAM, 0);
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	server.sin_family=AF_INET;
 	server.sin_addr.s_addr=INADDR_ANY;
 	server.sin_port=htons(4321);
@@ -68,7 +71,7 @@ int main(int argc, char *argv[])
 	/* Bind to socket and listen. */
 	printf("Opening socket on port: %i\n", ntohs(server.sin_port));
 
-	if(bind(sockfd, (struct sockaddr *)&server, SIZE) ==- 1) {
+	if(bind(sockfd, (struct sockaddr *)&server, SIZE) < 0) {
 		printf("Server failed to bind!\n");
 		exit(EXIT_FAILURE);
 	}
@@ -86,7 +89,7 @@ int main(int argc, char *argv[])
 	{
 		pid = fork();
 		if(pid < 0) {
-			syslog(LOG_CRIT, "Failed to fork: %s\n", perror);
+			syslog(LOG_CRIT, "Failed to fork: %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 
@@ -107,18 +110,26 @@ int main(int argc, char *argv[])
 
 	syslog(LOG_DEBUG, "Socket successfully bind and listening");
 
-	struct sockaddr addr;
-	socklen_t addrlen;
-	char clientAdd[INET_ADDRSTRLEN];
-
 	for(;;) {
 
+		struct sockaddr addr;
+		socklen_t addrlen = INET_ADDRSTRLEN;
+		char clientAdd[INET_ADDRSTRLEN];
+
 		clientsockfd = accept(sockfd, &addr, &addrlen);
+
 		inet_ntop(addr.sa_family, &addr.sa_data, &clientAdd[0], addrlen);
-		syslog(LOG_INFO, "Client Connected! %s", clientAdd);
+
 		if(fork() == 0) {
-			syslog(LOG_DEBUG, "Client login sequence started!");
-			login();
+			if(clientsockfd < 0) {
+				syslog(LOG_CRIT, "Socket failed to accept connection! Error: %s", strerror(errno));
+				exit(EXIT_FAILURE);
+			}
+			else {
+				syslog(LOG_INFO, "Client Connected! %s", clientAdd);
+			}
+
+			login(clientsockfd);
 			CMD_T clientReq = -1;
 			char clientBuff[CLIENTBUFF_SIZE] = {0};
 
@@ -178,6 +189,15 @@ int main(int argc, char *argv[])
 						esend(clientsockfd, &SERVE_CD_FAILED, sizeof(SERVE_CD_FAILED), 0);
 						syslog(LOG_ERR, "Failed to set working dir: %s", wkDir);
 					}
+				}
+				else if (clientReq == CMD_EXEC) {
+					syslog(LOG_INFO, "Client exec request recieved.");
+					size_t exec_CMD_length;
+					drecv(clientsockfd, &exec_CMD_length, sizeof(exec_CMD_length), 0);
+					char cmd[exec_CMD_length + 1];
+					drecv(clientsockfd, &cmd[0], exec_CMD_length * sizeof(char), 0);
+					cmd[exec_CMD_length] = '\0';
+					execCommand(clientsockfd, &cmd[0]);
 				}
 				else {
 					syslog(LOG_ERR, "Unrecognised client request: %i", clientReq);
@@ -292,34 +312,103 @@ void sendFile(int socket, char * file) {
 	}
 }
 
-void login(void) {
+void login(int socket) {
+	syslog(LOG_DEBUG, "%i", socket);
+	syslog(LOG_DEBUG, "Client login sequence started!");
 	for (int i = 0; i < MAX_LOGIN_ATTEMPTS; ++i)
 	{
-		size_t len;
-		drecv(clientsockfd, &len, sizeof(len), 0);
-		syslog(LOG_DEBUG, "len: %lu", len);
+		size_t len = -1;
+		drecv(socket, &len, sizeof(len), 0);
+		syslog(LOG_DEBUG, "len: %u", len);
 		char userBuff[len + 1];
-		drecv(clientsockfd, &userBuff[0], len * sizeof(char), 0);
+		drecv(socket, &userBuff[0], len * sizeof(char), 0);
 		userBuff[len] = '\0';
-		syslog(LOG_DEBUG, "%s uname - %lu len.", userBuff, len);
+		syslog(LOG_DEBUG, "%s uname - %u len.", userBuff, len);
 
-		drecv(clientsockfd, &len, sizeof(len), 0);
-		syslog(LOG_DEBUG, "len: %lu", len);
+		drecv(socket, &len, sizeof(len), 0);
+		syslog(LOG_DEBUG, "len: %u", len);
 		char passBuff[len + 1];
-		drecv(clientsockfd, &passBuff[0], len * sizeof(char), 0);
+		drecv(socket, &passBuff[0], len * sizeof(char), 0);
 		passBuff[len] = '\0';
-		syslog(LOG_DEBUG, "%s pass - %lu len.", passBuff, len);
+		syslog(LOG_DEBUG, "%s pass - %u len.", passBuff, len);
 
 		if(1) {
-			syslog(LOG_ERR, "%s logged in.", userBuff);
-			esend(clientsockfd, &LOGIN_SUCCESS, sizeof(LOGIN_SUCCESS), 0);
+			syslog(LOG_INFO, "%s logged in.", userBuff);
+			esend(socket, &LOGIN_SUCCESS, sizeof(LOGIN_SUCCESS), 0);
 			return;
 		}
 
-		esend(clientsockfd, &LOGIN_FAIL, sizeof(LOGIN_FAIL), 0);
+		esend(socket, &LOGIN_FAIL, sizeof(LOGIN_FAIL), 0);
 	}
 
 	syslog(LOG_ERR, "Max number of login attempts reached, shutting down.");
-	esend(clientsockfd, &SERVE_BYE, sizeof(SERVE_BYE), 0);
+	esend(socket, &SERVE_BYE, sizeof(SERVE_BYE), 0);
 	exit(EXIT_FAILURE);
+}
+
+void execCommand(int socket, char* cmd) {
+	syslog(LOG_INFO, "Executing command: %s.", cmd);
+
+	int out[2];
+	pipe(out);
+	pid_t cmdChld = fork();
+
+	if(cmdChld > 0) {
+		close(out[1]); // dont need to write to the pipe from this end.
+		char cmdBuff[256];
+		esend(clientsockfd, &SERVE_EXEC_BEGIN, sizeof(SERVE_EXEC_BEGIN), 0);
+
+		int size = 0;
+		while((size = read(out[0], &cmdBuff[0], sizeof(cmdBuff))) >0) {
+			syslog(LOG_DEBUG, "cmd ouput: %i.", size);
+			esend(socket, &cmdBuff[0], size, 0);
+		}
+		if(size == -1) {
+			syslog(LOG_ERR, "Failed to read pipe!");
+			syslog(LOG_ERR, "Error: %s", strerror(errno));
+		}
+
+		esend(clientsockfd, &SERVE_EXEC_END, sizeof(SERVE_EXEC_END), 0);
+		close(out[0]);
+	}
+	else if(cmdChld == 0) {
+		close(socket);
+		close(out[0]); // dont need to read to the pipe from this end.
+
+		// look at this again.
+		// build the args array
+		char ** args = NULL;
+		char *p = strtok(cmd, " ");
+		int numArgs = 0;
+
+		while(p) {
+			args = realloc (args, sizeof (char*) * ++numArgs);
+
+			args[numArgs-1] = p;
+
+			p = strtok (NULL, " ");
+		}
+
+		args = realloc (args, sizeof (char*) * (numArgs+1));
+		args[numArgs] = 0;
+
+
+		dup2(out[1], 1); //redirect our stdout to the pipe.
+
+		if(execv(args[0], args) == -1) {
+			syslog(LOG_ERR, "Failed to exec!");
+			syslog(LOG_ERR, "Error: %s", strerror(errno));
+		}
+		else {
+			syslog(LOG_DEBUG, "Exec complete!");
+		}
+		close(out[1]);
+		exit(EXIT_FAILURE);
+	}
+	else if(cmdChld < 0) {
+		syslog(LOG_ERR, "Failed to create fork!");
+		esend(clientsockfd, &SERVE_BYE, sizeof(SERVE_BYE), 0);
+		exit(EXIT_FAILURE);
+	}
+
 }

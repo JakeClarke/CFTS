@@ -25,6 +25,9 @@ const CMD_T SERVE_PUT_ERROR_CANNOTCREATE = 21;
 const CMD_T SERVE_CD_SUCCESS = 30;
 const CMD_T SERVE_CD_FAILED = 31;
 
+const CMD_T SERVE_EXEC_BEGIN = 41;
+const CMD_T SERVE_EXEC_END = 0; //null is probably the best to send, it shouldn't be mistaken for anything else...
+
 const CMD_T LOGIN_SUCCESS = 100;
 const CMD_T LOGIN_FAIL = 101;
 

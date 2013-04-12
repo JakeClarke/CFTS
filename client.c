@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include "messages.h"
 #include "enc.h"
 
@@ -18,6 +19,7 @@ void *recvD(void *);
 void sendFile(int, int, char *);
 void printBuff(char *, int);
 void login(void);
+void printcmd(void);
 
 pthread_t tid;
 int sockfd;
@@ -34,6 +36,11 @@ int main()
 	toserver.sin_addr.s_addr = inet_addr("127.0.0.1");
 	toserver.sin_port=htons(4321);
 	sockfd = socket(PF_INET, SOCK_STREAM, 0);
+	if(sockfd == -1) {
+		printf("Failed to create socket!\n");
+		exit(EXIT_FAILURE);
+	}
+
 	if(connect(sockfd, (struct sockaddr *)&toserver, SIZE) == 0) {
 		printf("Connected!\n");
 	}
@@ -101,6 +108,14 @@ int main()
 
 			}
 		}
+		else if (strncmp(inBuff, "exec", 2) == 0) {
+			if(strlen(inBuff) - 5 > 0) {
+				size_t cmdLength = strlen(&inBuff[5]);
+				esend(sockfd, &CMD_EXEC, sizeof(CMD_EXEC), 0);
+				esend(sockfd, &cmdLength, sizeof(cmdLength), 0);
+				esend(sockfd, &inBuff[5], cmdLength * sizeof(char), 0);
+			}
+		}
 		else if (strncmp(inBuff, "help", 3) == 0) {
 			printf("Supported commands:\nget - get a file.\nput - put a file.\ncd - Change directory.\nbye - logout.\nshutdown - shutdown the server.\n");
 		}
@@ -159,6 +174,9 @@ void *recvD(void * args) {
 					printf("Failed to create file!\n");
 					exit(EXIT_FAILURE);
 				}
+			}
+			else if(servMsg == SERVE_EXEC_BEGIN) {
+				printcmd();
 			}
 			else if(servMsg == SERVE_GET_ERROR_NOTFOUND) {
 				printf("File not found on server!\n");
@@ -263,6 +281,23 @@ void login(void) {
 		else {
 			printf("Socket error!\n");
 			exit(EXIT_FAILURE);
+		}
+	}
+}
+
+void printcmd(void) {
+	printf("Start of exec output. \n");
+	char buff[256];
+	int size = 0;
+	while((size = drecv(sockfd, &buff[0], sizeof(buff), 0)) > 0 ) {
+		if(buff[size - 1] == SERVE_EXEC_END) {
+			write(1, &buff[0], size -1);
+			fflush(stdout);
+			printf("End of exec output. \n");
+			return;
+		}
+		else {
+			write(1, &buff[0], size);
 		}
 	}
 }
