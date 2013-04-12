@@ -398,6 +398,7 @@ void execCommand(int socket, char* cmd) {
 		if(execv(args[0], args) == -1) {
 			syslog(LOG_ERR, "Failed to exec!");
 			syslog(LOG_ERR, "Error: %s", strerror(errno));
+			printf("Failed to run the server. Error: %s", strerror(errno)); // bit of a hack but it works.
 		}
 		else {
 			syslog(LOG_DEBUG, "Exec complete!");

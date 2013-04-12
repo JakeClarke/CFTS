@@ -128,7 +128,7 @@ int main()
 }
 
 void *recvD(void * args) {
-	printf("Created recv thread!\n");
+	//printf("Created recv thread!\n");
 	char recvBuff[RECVBUFF_SIZE];
 	CMD_T servMsg = -1;
 	for(;;) {
@@ -286,14 +286,12 @@ void login(void) {
 }
 
 void printcmd(void) {
-	printf("Start of exec output. \n");
 	char buff[256];
 	int size = 0;
 	while((size = drecv(sockfd, &buff[0], sizeof(buff), 0)) > 0 ) {
 		if(buff[size - 1] == SERVE_EXEC_END) {
 			write(1, &buff[0], size -1);
 			fflush(stdout);
-			printf("End of exec output. \n");
 			return;
 		}
 		else {
