@@ -22,8 +22,6 @@
 
 int sockfd, clientsockfd;
 
-int numberOfChilren = 5;
-
 char * configLoc = "AOS.config";
 
 
@@ -40,7 +38,7 @@ int main(int argc, char *argv[])
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	server.sin_family=AF_INET;
 	server.sin_addr.s_addr=INADDR_ANY;
-	server.sin_port=htons(4321);
+	server.sin_port=htons(port);
 
 	printf("AOS-server.\n");
 	setlogmask(LOG_UPTO (LOG_DEBUG));
@@ -60,8 +58,9 @@ int main(int argc, char *argv[])
 	readConfig(&configLoc[0]);
 
 	/* Change the working dir. */
-	if(chdir(wkDir) != 0) {
+	if(chdir(wkDir) == -1) {
 		printf("Failed to change to working directory: %s\n", wkDir);
+		printf("Error: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	else {
@@ -76,7 +75,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Forking....\n");
+	printf("Forking %i time(s)...\n", numberOfChilren);
 	pid = fork();
 	if(pid > 0) /* get rid of the parent. */
 		exit(EXIT_SUCCESS);
@@ -142,7 +141,13 @@ int main(int argc, char *argv[])
 				}
 				else if(clientReq == CMD_SHUTDOWN) {
 					syslog(LOG_INFO, "Shutdown recieved!");
-					kill(0, SIGTERM);
+					if(currAccess && ACC_SHUTDOWN != ACC_SHUTDOWN) {
+						syslog(LOG_ERR, "Client does not have the required permission");
+						esend(clientsockfd, &ACCESS_DENIED, sizeof(ACCESS_DENIED), 0);
+					}
+					else {
+						kill(0, SIGTERM);
+					}
 				}
 				else if(clientReq == CMD_GET) {
 					syslog(LOG_INFO, "Client file request recieved.");
@@ -410,7 +415,7 @@ void execCommand(int socket, char* cmd) {
 		if(execv(args[0], args) == -1) {
 			syslog(LOG_ERR, "Failed to exec!");
 			syslog(LOG_ERR, "Error: %s", strerror(errno));
-			printf("Failed to run the server. Error: %s", strerror(errno)); // bit of a hack but it works.
+			printf("Failed to run the server. Error: %s\n", strerror(errno)); // bit of a hack but it works.
 		}
 		else {
 			syslog(LOG_DEBUG, "Exec complete!");

@@ -4,6 +4,8 @@
 #define ACC_READ 1
 #define ACC_WRITE 2
 #define ACC_EXEC 4
+#define ACC_SHUTDOWN 8
+#define MIN_FORKS 1
 
 typedef struct
 {
@@ -11,6 +13,7 @@ typedef struct
 	char access;
 } user;
 
+int numberOfChilren = 5;
 char * currUsrName;
 char currAccess = 0;
 user * users = NULL;
@@ -31,18 +34,23 @@ void readConfig(char * file) {
 	char *line = NULL;
     size_t len = 0;
     ssize_t read;
+    int lineNo = 0;
 
 	while((read = getline(&line, &len, fp)) != -1)
 	{
+		lineNo++;
 		if(strncmp(line, "port: ", 6) == 0 && strlen(line) > 6) {
 			port = atoi(&line[6]);
 		}
-		else if(strncmp(line, "wd: ", 3) == 3) {
-			int len = strlen(&line[3]) + 1;
+		else if(strncmp(line, "wd: ", 4) == 0) {
+			int len = strlen(&line[4]) + 1;
 			if(wdChanged)
 				free(wkDir);
 			wkDir = malloc(len * sizeof(char));
-			memcpy(wkDir, &line[3], len * sizeof(char));
+			memcpy(wkDir, &line[4], len * sizeof(char));
+			if(wkDir[len - 2] == '\n')
+				wkDir[len - 2] = '\0';
+
 			wdChanged = 1;
 		}
 		else if(strncmp(line, "u:", 2) == 0 && strlen(line) > 2) {
@@ -65,6 +73,16 @@ void readConfig(char * file) {
 			users[numUsers -1].access = atoi(p);
 
 			syslog(LOG_DEBUG, "Added user: %s, password: %s, access: %i", users[numUsers -1].usrName, users[numUsers -1].passwd, users[numUsers -1].access);
+		}
+		else if(strncmp(line, "forks: ", 7) == 0 && strlen(line) > 7) {
+			numberOfChilren = atoi(&line[6]);
+			if(numberOfChilren <= MIN_FORKS) {
+				printf("Warning config fork value too low setting to min value: %i\n", MIN_FORKS);
+				numberOfChilren = MIN_FORKS;
+			}
+		}
+		else {
+			printf("Line %i no recognised in config file: %s", lineNo, file);
 		}
 	}
 
