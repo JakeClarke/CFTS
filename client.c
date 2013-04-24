@@ -14,6 +14,8 @@
 #define SIZE sizeof(struct sockaddr_in)
 #define RECVBUFF_SIZE 1024
 #define FILEBUFF_SIZE 1024
+#define DEFAULT_PORT 4321
+#define DEFAULT_ADDR "127.0.0.1"
 
 void *recvD(void *);
 void sendFile(int, int, char *);
@@ -23,18 +25,51 @@ void printcmd(void);
 
 pthread_t tid;
 int sockfd;
+char useDefault = 0;
 
-int main() 
+int main(int argc, char *argv[]) 
 {
 	printf("AOS - client.\n");
 
-	
-	char c,rc;
+	for (int i = 1; i < argc; ++i)
+	{
+		if (strcmp(argv[i], "-d") == 0)
+		{
+			printf("Using default address: %s:%i \n", DEFAULT_ADDR, DEFAULT_PORT);
+			useDefault = 1;
+		}
+	}
+
+	char inBuff[256];
+
 	struct sockaddr_in toserver;
 
 	toserver.sin_family=AF_INET;
-	toserver.sin_addr.s_addr = inet_addr("127.0.0.1");
-	toserver.sin_port=htons(4321);
+	if (useDefault)
+	{
+		toserver.sin_addr.s_addr = inet_addr(DEFAULT_ADDR);
+	}
+	else {
+		printf("Input server address: ");
+		fgets(inBuff, sizeof(inBuff), stdin);
+		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
+	
+		toserver.sin_addr.s_addr = inet_addr(inBuff);
+	}
+
+
+	if (useDefault)
+	{
+		toserver.sin_port=htons(DEFAULT_PORT);
+	}
+	else {
+		printf("Input server port: ");
+		fgets(inBuff, sizeof(inBuff), stdin);
+		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
+
+		toserver.sin_port=htons(atoi(inBuff));
+	}
+
 	sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if(sockfd == -1) {
 		printf("Failed to create socket!\n");
@@ -58,7 +93,7 @@ int main()
 	}
 
 
-	char inBuff[256];
+	
 	for(;;) {
 		fgets(inBuff, sizeof(inBuff), stdin);
 		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
@@ -69,7 +104,9 @@ int main()
 		}
 		else if(strcmp(inBuff, "shutdown") == 0) {
 			esend(sockfd, &CMD_SHUTDOWN, sizeof(CMD_SHUTDOWN), 0);
-			exit(EXIT_SUCCESS);
+		}
+		else if(strcmp(inBuff, "restart") == 0) {
+			esend(sockfd, &CMD_RESTART, sizeof(CMD_RESTART), 0);
 		}
 		else if(strncmp(inBuff, "get", 3) == 0) {
 			if(strlen(inBuff) - 4 > 0) {
@@ -117,7 +154,7 @@ int main()
 			}
 		}
 		else if (strncmp(inBuff, "help", 3) == 0) {
-			printf("Supported commands:\nget - get a file.\nput - put a file.\ncd - Change directory.\nbye - logout.\nshutdown - shutdown the server.\n");
+			printf("Supported commands:\nget - get a file.\nput - put a file.\ncd - Change directory.\nbye - logout.\nrestart - restart the server.\nshutdown - shutdown the server.\n");
 		}
 		else {
 			printf("Invalid input!\n");

@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <signal.h>
 #include "messages.h"
 #include "enc.h"
 #include "config.h"
@@ -19,27 +20,23 @@
 #define CLIENTBUFF_SIZE 1024
 #define CLIENT_RECV_BUFF_SIZE 1024
 #define MAX_LOGIN_ATTEMPTS 3
+#define MAX_BIND_ATTEMPTS 3
+#define BIND_WAIT_LENGTH 10
 
-int sockfd, clientsockfd;
+int sockfd = 0, clientsockfd = 0;
 
 char * configLoc = "AOS.config";
-
+char blockTerm = 0;
 
 void sendFile(int,char*);
 void recvFile(int,char*);
 void login(int);
 void execCommand(int,char*);
+void termHandler(int);
 
 int main(int argc, char *argv[]) 
 {
 	pid_t pid = 0, pgid = 0;
-
-	struct sockaddr_in server;
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	server.sin_family=AF_INET;
-	server.sin_addr.s_addr=INADDR_ANY;
-	server.sin_port=htons(port);
-
 	printf("AOS-server.\n");
 	setlogmask(LOG_UPTO (LOG_DEBUG));
 	openlog("AOS-server", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
@@ -57,6 +54,13 @@ int main(int argc, char *argv[])
 	printf("Loading config: %s\n", configLoc);
 	readConfig(&configLoc[0]);
 
+	struct sockaddr_in server;
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	server.sin_family=AF_INET;
+	server.sin_addr.s_addr=INADDR_ANY;
+	server.sin_port=htons(port);
+
+
 	/* Change the working dir. */
 	if(chdir(wkDir) == -1) {
 		printf("Failed to change to working directory: %s\n", wkDir);
@@ -66,13 +70,27 @@ int main(int argc, char *argv[])
 	else {
 		printf("Working dir: %s\n", wkDir);
 	}
+	
+	int t = 1;
+	// set so that the server can rebind when restarting.
+	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &t, sizeof(int));
+	
 
 	/* Bind to socket and listen. */
 	printf("Opening socket on port: %i\n", ntohs(server.sin_port));
 
-	if(bind(sockfd, (struct sockaddr *)&server, SIZE) < 0) {
-		printf("Server failed to bind!\n");
-		exit(EXIT_FAILURE);
+	int tries = 0;
+	while(bind(sockfd, (struct sockaddr *)&server, SIZE) < 0) {
+		printf("%i: Server failed to bind!\n", tries + 1);
+		printf("Error: %s\n", strerror(errno));
+		++tries;
+		if (tries >= MAX_BIND_ATTEMPTS)
+		{
+			printf("Max attempts hit!\n");
+			exit(EXIT_FAILURE);
+		}
+		printf("Retrying...\n");
+		sleep(BIND_WAIT_LENGTH);
 	}
 
 	printf("Forking %i time(s)...\n", numberOfChilren);
@@ -82,7 +100,10 @@ int main(int argc, char *argv[])
 
 	if(setsid() == -1) {
 		syslog(LOG_ERR, "Failed to set session id!\n");
+		exit(EXIT_FAILURE);
 	}
+
+	signal(SIGTERM, termHandler);
 
 	for(int forkNum = 1; forkNum < numberOfChilren; forkNum++) 
 	{
@@ -127,6 +148,8 @@ int main(int argc, char *argv[])
 			else {
 				syslog(LOG_INFO, "Client Connected! %s", clientAdd);
 			}
+			close(sockfd); // don't actually need this any more, bye.
+			sockfd = 0; // mark it as closed.
 
 			login(clientsockfd);
 			CMD_T clientReq = -1;
@@ -204,6 +227,24 @@ int main(int argc, char *argv[])
 					cmd[exec_CMD_length] = '\0';
 					execCommand(clientsockfd, &cmd[0]);
 				}
+				else if(clientReq == CMD_RESTART) {
+					syslog(LOG_INFO, "Restart recieved!");
+					if(currAccess && ACC_SHUTDOWN != ACC_SHUTDOWN) {
+						syslog(LOG_ERR, "Client does not have the required permission");
+						esend(clientsockfd, &ACCESS_DENIED, sizeof(ACCESS_DENIED), 0);
+					}
+					else {
+						esend(clientsockfd, &SERVE_BYE, sizeof(SERVE_BYE), 0);
+						shutdown(clientsockfd, 3);
+						blockTerm = 1;
+						kill(0, SIGTERM);
+						if (execv(argv[0], argv)) {
+							syslog(LOG_ERR, "Could not restart");
+        					exit(EXIT_FAILURE);
+   						}
+					}
+
+				}
 				else {
 					syslog(LOG_ERR, "Unrecognised client request: %i", clientReq);
 				}
@@ -223,6 +264,7 @@ int main(int argc, char *argv[])
 		}
 
 		close(clientsockfd);
+		clientsockfd = 0;
 
 	}
 }
@@ -429,4 +471,23 @@ void execCommand(int socket, char* cmd) {
 		exit(EXIT_FAILURE);
 	}
 
+}
+
+void termHandler(int sig) {
+
+	if(!blockTerm) {
+		syslog(LOG_DEBUG, "Signal handled!");
+		if (clientsockfd > 0)
+		{
+			esend(clientsockfd, &SERVE_BYE, sizeof(SERVE_BYE), 0);
+			close(clientsockfd);
+		}
+		if(sockfd > 0) {
+			close(sockfd);
+		}
+		exit(EXIT_SUCCESS);
+	}
+	else {
+		syslog(LOG_DEBUG, "Signal blocked!");
+	}
 }
