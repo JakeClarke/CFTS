@@ -283,34 +283,32 @@ void printBuff(char * buff, int length) {
 
 void login(void) {
 	char userBuff[256];
-	char passBuff[256];
 	for (;;)
 	{
 		printf("Enter username:\n");
 		fgets(userBuff, sizeof(userBuff), stdin);
-		printf("Enter password:\n");
-		fgets(passBuff, sizeof(passBuff), stdin);
+		char * pass =  getpass("Enter password: ");
 		userBuff[strlen(userBuff) - 1] = '\0';
-		passBuff[strlen(passBuff) - 1] = '\0';
 
 		size_t len = strlen(userBuff);
 		esend(sockfd, &len, sizeof(len), 0);
 		esend(sockfd, &userBuff[0], len * sizeof(char), 0);
-		len = strlen(passBuff);
+		char * ph = crypt(pass, SALT);
+		len = strlen(ph);
 		esend(sockfd, &len, sizeof(len), 0);
-		esend(sockfd, &passBuff[0], len * sizeof(char), 0);
+		esend(sockfd, ph, len * sizeof(char), 0);
 
 		CMD_T res = -1;
 		if (drecv(sockfd, &res, sizeof(res), 0) > 0 ) {
 			switch(res) {
 				case LOGIN_SUCCESS:
-				printf("Login sucessful.\n");
+				printf("\nLogin sucessful.\n\n");
 				return;
 				case LOGIN_FAIL:
-				printf("Login failed.\n");
+				printf("\nLogin failed.\n\n");
 				break;
 				case SERVE_BYE:
-				printf("Too many login attempts, disconnected!\n");
+				printf("\nToo many login attempts, disconnected!\n\n");
 				exit(EXIT_FAILURE);
 				break;
 				default:

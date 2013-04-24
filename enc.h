@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <errno.h>
 
+#define SALT "$1$w4acASuS"
 #define MAGIC_NUMBER 142; // magic number for the xor function.
 
 ssize_t esend(int sockfd, const void *buf, size_t len, int flags) {
