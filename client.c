@@ -4,9 +4,11 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <crypt.h>
 #include <errno.h>
 #include "messages.h"
 #include "enc.h"
