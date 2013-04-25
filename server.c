@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 {
 	pid_t pid = 0, pgid = 0;
 	printf("AOS-server.\n");
-	setlogmask(LOG_UPTO (LOG_DEBUG));
+	setlogmask(LOG_UPTO (LOG_INFO));
 	openlog("AOS-server", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
 
 	for (int i = 0; i < argc; ++i)
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &t, sizeof(int));
 	
 
-	/* Bind to socket and listen. */
+	// Bind to socket and listen.
 	printf("Opening socket on port: %i\n", ntohs(server.sin_port));
 
 	int tries = 0;
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 
 	printf("Forking %i time(s)...\n", numberOfChilren);
 	pid = fork();
-	if(pid > 0) /* get rid of the parent. */
+	if(pid > 0) // get rid of the parent.
 		exit(EXIT_SUCCESS);
 
 	if(setsid() == -1) {
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	syslog(LOG_DEBUG, "Socket successfully bind and listening");
+	syslog(LOG_DEBUG, "Socket successfully bound and listening");
 
 	for(;;) {
 
@@ -235,8 +235,8 @@ int main(int argc, char *argv[])
 					}
 					else {
 						esend(clientsockfd, &SERVE_BYE, sizeof(SERVE_BYE), 0);
-						shutdown(clientsockfd, 3);
-						blockTerm = 1;
+						close(clientsockfd);
+						blockTerm = 1; // we need to keep a process alive to spawn the new one.
 						kill(0, SIGTERM);
 						if (execv(argv[0], argv)) {
 							syslog(LOG_ERR, "Could not restart");
@@ -418,15 +418,18 @@ void execCommand(int socket, char* cmd) {
 		esend(clientsockfd, &SERVE_EXEC_BEGIN, sizeof(SERVE_EXEC_BEGIN), 0);
 
 		int size = 0;
+		// read from the pip.
 		while((size = read(out[0], &cmdBuff[0], sizeof(cmdBuff))) >0) {
 			syslog(LOG_DEBUG, "cmd ouput: %i.", size);
 			esend(socket, &cmdBuff[0], size, 0);
 		}
+		// it broke.
 		if(size == -1) {
 			syslog(LOG_ERR, "Failed to read pipe!");
 			syslog(LOG_ERR, "Error: %s", strerror(errno));
 		}
 
+		// tell the client to not expect any more cmd output.
 		esend(clientsockfd, &SERVE_EXEC_END, sizeof(SERVE_EXEC_END), 0);
 		close(out[0]);
 	}
@@ -434,12 +437,12 @@ void execCommand(int socket, char* cmd) {
 		close(socket);
 		close(out[0]); // dont need to read to the pipe from this end.
 
-		// look at this again.
 		// build the args array
 		char ** args = NULL;
 		char *p = strtok(cmd, " ");
 		int numArgs = 0;
 
+		//will be null if there are no more args.
 		while(p) {
 			args = realloc (args, sizeof (char*) * ++numArgs);
 
@@ -485,7 +488,7 @@ void termHandler(int sig) {
 		if(sockfd > 0) {
 			close(sockfd);
 		}
-		exit(EXIT_SUCCESS);
+		exit(sig);
 	}
 	else {
 		syslog(LOG_DEBUG, "Signal blocked!");

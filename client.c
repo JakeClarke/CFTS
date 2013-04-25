@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 
 	
 	for(;;) {
-		fgets(inBuff, sizeof(inBuff), stdin);
+		fgets(inBuff, sizeof(inBuff), stdin); // read the users input
 		inBuff[strlen(inBuff) - 1] = '\0'; // get rid of the new line.
 		
 		if(strcmp(inBuff, "bye") == 0) {
@@ -183,8 +183,6 @@ void *recvD(void * args) {
 				char * fileName = (char *)malloc(length);
 				drecv(sockfd, fileName, length, 0);
 				
-				//memcpy(&fileName, &recvBuff, length);
-				//printBuff(&recvBuff[0], length);
 				printf("Recieving filename length: %i\n", length);
 				printf("Recieving file: %s\n", fileName);
 
